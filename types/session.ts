@@ -19,3 +19,15 @@ export type SessionState = {
   items: SessionItem[];
   activeId: string | null;
 };
+
+// A cloud session row as listed in "My Sessions".
+export type CloudSessionMeta = {
+  id: string;
+  title: string;
+  updatedAt: string;
+};
+
+// A cloud session with its items loaded, ready to open in the editor.
+export type CloudSession = CloudSessionMeta & {
+  items: SessionItem[];
+};
