@@ -177,11 +177,41 @@ export function parseBandcampInput(raw: string): BandcampMetadata {
 }
 
 /**
+ * Bandcamp's big-artwork layout buries the track title and transport controls.
+ * We normalize embeds to the compact horizontal player (small artwork, no
+ * tracklist) so the current track name and play button stay prominent. Only
+ * display params are changed — the release id and colours are preserved.
+ */
+export function normalizeEmbedSrc(src: string): string {
+  if (!src.startsWith(EMBED_PREFIX)) return src;
+
+  const params = new Map<string, string>();
+  for (const segment of src.slice(EMBED_PREFIX.length).split("/")) {
+    if (!segment) continue;
+    const eq = segment.indexOf("=");
+    if (eq === -1) params.set(segment, "");
+    else params.set(segment.slice(0, eq), segment.slice(eq + 1));
+  }
+
+  params.set("size", "large");
+  params.set("artwork", "small");
+  params.set("tracklist", "false");
+  if (!params.has("transparent")) params.set("transparent", "true");
+
+  const rebuilt = Array.from(params.entries())
+    .map(([key, value]) => (value === "" ? key : `${key}=${value}`))
+    .join("/");
+
+  return `${EMBED_PREFIX}${rebuilt}/`;
+}
+
+/**
  * Cross-origin iframes can't auto-size to their content, so we pick a height
  * from the size hint encoded in the official embed URL.
  */
 export function embedHeight(src: string): number {
   if (src.includes("size=small")) return 42;
+  if (src.includes("artwork=small")) return 120;
   if (src.includes("album=")) return 470;
   return 120;
 }

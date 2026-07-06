@@ -1,4 +1,4 @@
-import { embedHeight } from "@/lib/bandcamp";
+import { embedHeight, normalizeEmbedSrc } from "@/lib/bandcamp";
 
 export default function BandcampEmbed({
   src,
@@ -7,14 +7,16 @@ export default function BandcampEmbed({
   src: string;
   openUrl: string;
 }) {
+  const embedSrc = normalizeEmbedSrc(src);
+
   return (
     <div className="mt-3 space-y-3">
       <iframe
-        src={src}
+        src={embedSrc}
         title="Bandcamp player"
         seamless
         loading="lazy"
-        height={embedHeight(src)}
+        height={embedHeight(embedSrc)}
         className="w-full rounded-2xl border border-zinc-800/70"
       />
       <a

@@ -27,6 +27,27 @@ export default function NowPlaying({ item }: { item: SessionItem | null }) {
   const primary = item.title ?? item.label ?? item.url;
   const source = item.sourceUrl ?? item.url;
 
+  // Embed items are player-forward: the official player carries the real
+  // artwork, so we lead with a title/artist header and then the player — no
+  // competing placeholder.
+  if (item.embedSrc) {
+    return (
+      <Panel>
+        <h2 className="truncate text-2xl font-semibold text-white">
+          {primary}
+        </h2>
+        {item.artist ? (
+          <p className="mt-1 truncate text-zinc-400">{item.artist}</p>
+        ) : null}
+        <div className="mt-5">
+          <BandcampEmbed src={item.embedSrc} openUrl={source} />
+        </div>
+      </Panel>
+    );
+  }
+
+  // Link items are artwork-forward: no player, so the large artwork (or
+  // placeholder) fills that space alongside the metadata.
   return (
     <Panel>
       <div className="flex items-center gap-5">
@@ -46,20 +67,14 @@ export default function NowPlaying({ item }: { item: SessionItem | null }) {
         </div>
       </div>
 
-      {item.embedSrc ? (
-        <div className="mt-5">
-          <BandcampEmbed src={item.embedSrc} openUrl={source} />
-        </div>
-      ) : (
-        <a
-          href={source}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-5 inline-block rounded-xl bg-white px-5 py-3 font-medium text-black transition hover:bg-zinc-200"
-        >
-          Open on Bandcamp ↗
-        </a>
-      )}
+      <a
+        href={source}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-5 inline-block rounded-xl bg-white px-5 py-3 font-medium text-black transition hover:bg-zinc-200"
+      >
+        Open on Bandcamp ↗
+      </a>
     </Panel>
   );
 }
