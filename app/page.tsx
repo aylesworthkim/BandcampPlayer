@@ -2,43 +2,56 @@
 
 import { useSyncExternalStore } from "react";
 import UrlInput from "@/components/UrlInput";
+import SessionTitle from "@/components/SessionTitle";
+import NowPlaying from "@/components/NowPlaying";
 import SessionList from "@/components/SessionList";
+import EmptyState from "@/components/EmptyState";
 import {
   addSessionItem,
   getServerSessionSnapshot,
   getSessionSnapshot,
   moveSessionItem,
   removeSessionItem,
+  setActiveItem,
+  setTitle,
   subscribeSession,
 } from "@/lib/storage";
 
 export default function Home() {
-  const session = useSyncExternalStore(
+  const { title, items, activeId } = useSyncExternalStore(
     subscribeSession,
     getSessionSnapshot,
     getServerSessionSnapshot,
   );
 
+  const activeItem = items.find((item) => item.id === activeId) ?? null;
+
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
-      <section className="mx-auto flex min-h-screen max-w-5xl flex-col px-6 py-10">
-        <header className="mb-12">
-          <p className="text-sm uppercase tracking-[0.4em] text-zinc-500">
+      <section className="mx-auto flex min-h-screen max-w-3xl flex-col gap-8 px-6 py-12">
+        <header className="space-y-3">
+          <p className="text-xs uppercase tracking-[0.4em] text-zinc-600">
             Project Sesh
           </p>
-          <h1 className="mt-3 text-5xl font-bold">BandcampPlayer</h1>
-          <p className="mt-4 max-w-xl text-zinc-400">
-            Build a listening session from Bandcamp links.
-          </p>
+          <SessionTitle title={title} onChange={setTitle} />
         </header>
 
         <UrlInput onAdd={addSessionItem} />
 
-        <SessionList
-          session={session}
-          onRemove={removeSessionItem}
-          onMove={moveSessionItem}
-        />
+        {items.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <>
+            <NowPlaying item={activeItem} />
+            <SessionList
+              session={items}
+              activeId={activeId}
+              onPlay={setActiveItem}
+              onRemove={removeSessionItem}
+              onMove={moveSessionItem}
+            />
+          </>
+        )}
       </section>
     </main>
   );

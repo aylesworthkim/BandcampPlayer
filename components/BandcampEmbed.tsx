@@ -15,7 +15,7 @@ export default function BandcampEmbed({
         seamless
         loading="lazy"
         height={embedHeight(src)}
-        className="w-full rounded-xl border border-zinc-800"
+        className="w-full rounded-2xl border border-zinc-800/70"
       />
       <a
         href={openUrl}

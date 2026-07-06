@@ -9,6 +9,8 @@ export type BandcampParse = {
   embedSrc: string | null;
   // The best "Open on Bandcamp" destination for this input.
   openUrl: string;
+  // A human-friendly label derived from the embed's anchor text or the URL slug.
+  label: string;
 };
 
 function extractAttr(html: string, attr: "src" | "href"): string | null {
@@ -18,8 +20,45 @@ function extractAttr(html: string, attr: "src" | "href"): string | null {
   return match ? match[1] : null;
 }
 
+// Bandcamp embed snippets include an <a> fallback whose text reads like
+// "Track Title by Artist" — the nicest label we can get for an embed.
+function extractAnchorText(html: string): string | null {
+  const match = html.match(/<a[^>]*>([^<]+)<\/a>/i);
+  const text = match?.[1]?.trim();
+  return text ? text : null;
+}
+
 function isEmbedUrl(value: string): boolean {
   return value.startsWith(EMBED_PREFIX);
+}
+
+function hostname(url: string): string | null {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
+// Turn a "/track/forty-winks" or "/album/jettison-mind-hatch" path into a
+// title-cased label ("Forty Winks", "Jettison Mind Hatch").
+function slugToLabel(url: string): string | null {
+  let pathname: string;
+  try {
+    pathname = new URL(url).pathname;
+  } catch {
+    return null;
+  }
+
+  const match = pathname.match(/\/(?:track|album)\/([^/?#]+)/i);
+  if (!match) return null;
+
+  const words = match[1]
+    .split("-")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1));
+
+  return words.length ? words.join(" ") : null;
 }
 
 /**
@@ -39,19 +78,29 @@ export function parseBandcampInput(raw: string): BandcampParse {
     const src = extractAttr(input, "src");
     const href = extractAttr(input, "href");
     if (src && isEmbedUrl(src)) {
-      return { embedSrc: src, openUrl: href ?? src };
+      const openUrl = href ?? src;
+      const label =
+        extractAnchorText(input) ??
+        (href ? slugToLabel(href) : null) ??
+        "Bandcamp player";
+      return { embedSrc: src, openUrl, label };
     }
     // An <iframe> that isn't a recognizable Bandcamp embed: never render it.
-    return { embedSrc: null, openUrl: href ?? input };
+    const openUrl = href ?? input;
+    return { embedSrc: null, openUrl, label: labelForLink(openUrl) };
   }
 
-  // Case 2: a direct EmbeddedPlayer URL.
+  // Case 2: a direct EmbeddedPlayer URL (no human-readable name available).
   if (isEmbedUrl(input)) {
-    return { embedSrc: input, openUrl: input };
+    return { embedSrc: input, openUrl: input, label: "Bandcamp player" };
   }
 
   // Case 3: a plain URL — link only.
-  return { embedSrc: null, openUrl: input };
+  return { embedSrc: null, openUrl: input, label: labelForLink(input) };
+}
+
+function labelForLink(url: string): string {
+  return slugToLabel(url) ?? hostname(url) ?? url;
 }
 
 /**
