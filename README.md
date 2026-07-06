@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Project Sesh — BandcampPlayer
 
-## Getting Started
+A beautiful, listener-first way to build **Bandcamp-powered listening sessions**.
+Paste a track, album, or embed and Project Sesh turns it into a queue of playable
+music objects — a small record shelf and listening room in the browser.
 
-First, run the development server:
+Project Sesh is built to **support Bandcamp artists**: it uses official Bandcamp
+links and embeds, and always routes listeners back to Bandcamp to play, buy, and
+follow.
+
+## Features
+
+- Paste a Bandcamp **track URL, album URL, or embed code**
+- Builds a **queue** of your session
+- **Now Playing** area with the official Bandcamp player (or an “Open on
+  Bandcamp” link when no embed is available)
+- Rich **music cards** — title, artist, artwork placeholder, and source link
+- **Reorder** (move up/down) and **remove** items
+- **Name your session**
+- Everything **persists locally** and syncs across browser tabs
+- Dark, immersive, minimal, music-first UI
+
+## Guardrails
+
+Project Sesh respects Bandcamp and its artists:
+
+- No scraping of Bandcamp pages
+- No audio downloading or raw stream extraction
+- No bypassing the Bandcamp player
+- No Bandcamp login required
+- Only public Bandcamp URLs and official embed behaviour
+- Every player includes a clear **Open on Bandcamp** link
+
+## Tech stack
+
+- [Next.js](https://nextjs.org) (App Router)
+- TypeScript
+- Tailwind CSS
+- React state + `localStorage` (no backend, no database, no auth yet)
+
+State lives in a small `localStorage`-backed store read through
+`useSyncExternalStore`, so the session is hydration-safe and shared across tabs.
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) and paste a Bandcamp link to
+start a session.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command         | Description                       |
+| --------------- | --------------------------------- |
+| `npm run dev`   | Start the dev server              |
+| `npm run build` | Production build                  |
+| `npm start`     | Serve the production build        |
+| `npm run lint`  | Lint with ESLint                  |
 
-## Learn More
+## Project structure
 
-To learn more about Next.js, take a look at the following resources:
+```txt
+app/          Next.js App Router entry (page, layout)
+components/   UI: UrlInput, NowPlaying, SessionList, SessionItemCard, Artwork…
+lib/          bandcamp.ts (parse input → metadata), storage.ts (session store)
+types/        Shared types (SessionItem, SessionState)
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## How input is interpreted
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+When you add something, it is parsed **once** into a music object:
 
-## Deploy on Vercel
+- **Embed code** → renders the official Bandcamp player; title/artist come from
+  the embed’s link text.
+- **Track / album URL** → a card that opens on Bandcamp; the title comes from the
+  URL slug and the artist from the `artist.bandcamp.com` subdomain.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Artwork is shown when a Bandcamp image URL is present in the pasted input;
+otherwise a colourful placeholder is generated so the shelf still looks alive.

@@ -1,5 +1,5 @@
 import type { SessionItem } from "@/types/session";
-import { parseBandcampInput } from "@/lib/bandcamp";
+import Artwork from "@/components/Artwork";
 
 export default function SessionItemCard({
   item,
@@ -18,7 +18,8 @@ export default function SessionItemCard({
   onRemove: (id: string) => void;
   onMove: (id: string, direction: "up" | "down") => void;
 }) {
-  const { openUrl, label } = parseBandcampInput(item.url);
+  const primary = item.title ?? item.label ?? item.url;
+  const source = item.sourceUrl ?? item.url;
 
   const controlClass =
     "rounded-lg px-2 py-1 text-zinc-500 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-zinc-500";
@@ -31,29 +32,36 @@ export default function SessionItemCard({
           : "border-zinc-800/60 bg-zinc-900/40 hover:border-zinc-700"
       }`}
     >
-      {/* Clicking the item (or the play icon) makes it the active track. */}
+      {/* Clicking the artwork/title makes this the active track. */}
       <button
         onClick={() => onPlay(item.id)}
-        aria-label={`Play ${label}`}
+        aria-label={`Play ${primary}`}
         aria-pressed={isActive}
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        className="group flex min-w-0 flex-1 items-center gap-3 text-left"
       >
-        <span
-          className={`grid size-9 shrink-0 place-items-center rounded-full text-sm transition ${
-            isActive
-              ? "bg-white text-black"
-              : "bg-zinc-800 text-zinc-300"
-          }`}
-        >
-          ▶
+        <span className="relative size-14 shrink-0">
+          <Artwork item={item} className="size-14 overflow-hidden rounded-lg" />
+          <span
+            className={`absolute inset-0 grid place-items-center rounded-lg text-white transition ${
+              isActive
+                ? "bg-black/40"
+                : "bg-black/50 opacity-0 group-hover:opacity-100"
+            }`}
+          >
+            {isActive ? "♪" : "▶"}
+          </span>
         </span>
+
         <span className="min-w-0">
           <span className="block truncate font-medium text-white">
-            {label}
+            {primary}
           </span>
-          <span className="block truncate text-xs text-zinc-500">
-            {openUrl}
-          </span>
+          {item.artist ? (
+            <span className="block truncate text-sm text-zinc-400">
+              {item.artist}
+            </span>
+          ) : null}
+          <span className="block truncate text-xs text-zinc-600">{source}</span>
         </span>
       </button>
 
@@ -61,7 +69,7 @@ export default function SessionItemCard({
         <button
           onClick={() => onMove(item.id, "up")}
           disabled={isFirst}
-          aria-label={`Move ${label} up`}
+          aria-label={`Move ${primary} up`}
           className={controlClass}
         >
           ↑
@@ -69,14 +77,14 @@ export default function SessionItemCard({
         <button
           onClick={() => onMove(item.id, "down")}
           disabled={isLast}
-          aria-label={`Move ${label} down`}
+          aria-label={`Move ${primary} down`}
           className={controlClass}
         >
           ↓
         </button>
         <button
           onClick={() => onRemove(item.id)}
-          aria-label={`Remove ${label}`}
+          aria-label={`Remove ${primary}`}
           className={controlClass}
         >
           ✕

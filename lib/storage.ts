@@ -1,4 +1,5 @@
 import type { SessionItem, SessionState } from "@/types/session";
+import { parseBandcampInput } from "@/lib/bandcamp";
 
 // v0.2 persists the whole session (title + items + active item) under one key.
 // v0.1 stored just the items array under LEGACY_KEY; we migrate that on read.
@@ -26,6 +27,14 @@ function isSessionItem(value: unknown): value is SessionItem {
   );
 }
 
+// Ensure a stored item carries derived metadata. v0.1/v0.2 items only had
+// { id, url }, so we parse those on load ("parse once" still holds — richer
+// items added in v0.3+ already have `kind` and are returned untouched).
+function hydrateItem(item: SessionItem): SessionItem {
+  if (item.kind) return item;
+  return { ...item, ...parseBandcampInput(item.url) };
+}
+
 // Coerce arbitrary parsed JSON into a valid SessionState, dropping anything that
 // doesn't fit and clearing activeId if it no longer points at a real item.
 function normalize(
@@ -33,7 +42,9 @@ function normalize(
   items: unknown,
   activeId: unknown,
 ): SessionState {
-  const cleanItems = Array.isArray(items) ? items.filter(isSessionItem) : [];
+  const cleanItems = Array.isArray(items)
+    ? items.filter(isSessionItem).map(hydrateItem)
+    : [];
   const cleanActive =
     typeof activeId === "string" &&
     cleanItems.some((item) => item.id === activeId)
@@ -125,7 +136,11 @@ export function setTitle(title: string): void {
 }
 
 export function addSessionItem(url: string): void {
-  const item: SessionItem = { id: crypto.randomUUID(), url };
+  const item: SessionItem = {
+    id: crypto.randomUUID(),
+    url,
+    ...parseBandcampInput(url),
+  };
   commit({
     ...cache,
     items: [item, ...cache.items],

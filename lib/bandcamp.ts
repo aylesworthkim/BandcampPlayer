@@ -3,14 +3,17 @@
 // markup can never be turned into an embedded frame.
 const EMBED_PREFIX = "https://bandcamp.com/EmbeddedPlayer/";
 
-export type BandcampParse = {
-  // The official EmbeddedPlayer src, if the input resolves to one. Null means
-  // "no embed available" and callers should fall back to a plain link.
-  embedSrc: string | null;
-  // The best "Open on Bandcamp" destination for this input.
-  openUrl: string;
-  // A human-friendly label derived from the embed's anchor text or the URL slug.
+// Everything we can derive from a pasted URL or embed snippet. Mirrors the
+// optional metadata fields on SessionItem (minus id/url).
+export type BandcampMetadata = {
+  kind: "link" | "embed";
   label: string;
+  title?: string;
+  artist?: string;
+  album?: string;
+  artworkUrl?: string;
+  sourceUrl: string;
+  embedSrc?: string;
 };
 
 function extractAttr(html: string, attr: "src" | "href"): string | null {
@@ -26,6 +29,26 @@ function extractAnchorText(html: string): string | null {
   const match = html.match(/<a[^>]*>([^<]+)<\/a>/i);
   const text = match?.[1]?.trim();
   return text ? text : null;
+}
+
+// Best-effort artwork: only if a Bandcamp image URL is literally present in the
+// pasted input. We never fetch pages, so most items have no artwork and fall
+// back to a generated placeholder.
+function extractArtwork(text: string): string | undefined {
+  const match = text.match(
+    /https?:\/\/[a-z0-9.-]*bcbits\.com\/[^\s"'<>]+\.(?:jpg|jpeg|png|gif)/i,
+  );
+  return match ? match[0] : undefined;
+}
+
+// "Track Title by Artist" -> { title: "Track Title", artist: "Artist" }.
+function splitTitleArtist(text: string): { title: string; artist?: string } {
+  const marker = text.toLowerCase().lastIndexOf(" by ");
+  if (marker === -1) return { title: text };
+  return {
+    title: text.slice(0, marker).trim(),
+    artist: text.slice(marker + 4).trim() || undefined,
+  };
 }
 
 function isEmbedUrl(value: string): boolean {
@@ -51,72 +74,106 @@ function titleize(slug: string): string {
 
 // Turn a "/track/forty-winks" or "/album/jettison-mind-hatch" path into a
 // title-cased label ("Forty Winks", "Jettison Mind Hatch").
-function slugToLabel(url: string): string | null {
+function slugToLabel(url: string): string | undefined {
   let pathname: string;
   try {
     pathname = new URL(url).pathname;
   } catch {
-    return null;
+    return undefined;
   }
 
   const match = pathname.match(/\/(?:track|album)\/([^/?#]+)/i);
-  if (!match) return null;
+  if (!match) return undefined;
 
   const label = titleize(match[1]);
-  return label ? label : null;
+  return label ? label : undefined;
 }
 
 // Standard artist pages live at "<artist>.bandcamp.com", so the subdomain gives
 // us the artist name. Custom domains don't follow this pattern, so we return
-// null and callers fall back to a title-only label.
-function artistFromUrl(url: string): string | null {
+// undefined and callers fall back to a title-only label.
+function artistFromUrl(url: string): string | undefined {
   const host = hostname(url);
   const match = host?.match(/^([^.]+)\.bandcamp\.com$/i);
-  return match ? titleize(match[1]) : null;
+  return match ? titleize(match[1]) : undefined;
+}
+
+function combineLabel(title?: string, artist?: string): string | undefined {
+  if (title && artist) return `${title} by ${artist}`;
+  return title;
+}
+
+// Metadata for a plain track/album/artist URL (no embed).
+function linkMetadata(url: string, artworkUrl?: string): BandcampMetadata {
+  const title = slugToLabel(url);
+  const artist = artistFromUrl(url);
+  const isAlbum = /\/album\//i.test(url);
+  return {
+    kind: "link",
+    label: combineLabel(title, artist) ?? hostname(url) ?? url,
+    title,
+    artist,
+    album: isAlbum ? title : undefined,
+    artworkUrl,
+    sourceUrl: url,
+  };
 }
 
 /**
- * Interpret a raw pasted string. It may be:
- *   1. A Bandcamp embed snippet (`<iframe src="…EmbeddedPlayer…"><a href="…">`)
- *   2. A direct EmbeddedPlayer URL
- *   3. A plain track/album/artist URL (no embed — link only, prior behavior)
- *
- * This is intentionally permissive: anything we don't recognize as an embed is
- * returned as a link, preserving the original "paste a URL, get a link" flow.
+ * Interpret a raw pasted string, deriving as much metadata as possible. It may
+ * be an embed snippet, a direct EmbeddedPlayer URL, or a plain URL. This runs
+ * once when an item is added; components read the stored fields instead.
  */
-export function parseBandcampInput(raw: string): BandcampParse {
+export function parseBandcampInput(raw: string): BandcampMetadata {
   const input = raw.trim();
 
   // Case 1: an embed iframe snippet.
   if (input.includes("<iframe")) {
     const src = extractAttr(input, "src");
     const href = extractAttr(input, "href");
+    const artworkUrl = extractArtwork(input);
+
     if (src && isEmbedUrl(src)) {
-      const openUrl = href ?? src;
+      const sourceUrl = href ?? src;
+      const anchor = extractAnchorText(input);
+      const fromAnchor = anchor ? splitTitleArtist(anchor) : null;
+
+      const title = fromAnchor?.title ?? (href ? slugToLabel(href) : undefined);
+      const artist =
+        fromAnchor?.artist ?? (href ? artistFromUrl(href) : undefined);
       const label =
-        extractAnchorText(input) ??
-        (href ? labelForLink(href) : "Bandcamp player");
-      return { embedSrc: src, openUrl, label };
+        anchor ??
+        combineLabel(title, artist) ??
+        (href ? hostname(href) ?? href : "Bandcamp player");
+
+      return {
+        kind: "embed",
+        label,
+        title,
+        artist,
+        album: src.includes("album=") ? title : undefined,
+        artworkUrl,
+        sourceUrl,
+        embedSrc: src,
+      };
     }
+
     // An <iframe> that isn't a recognizable Bandcamp embed: never render it.
-    const openUrl = href ?? input;
-    return { embedSrc: null, openUrl, label: labelForLink(openUrl) };
+    return linkMetadata(href ?? input, artworkUrl);
   }
 
   // Case 2: a direct EmbeddedPlayer URL (no human-readable name available).
   if (isEmbedUrl(input)) {
-    return { embedSrc: input, openUrl: input, label: "Bandcamp player" };
+    return {
+      kind: "embed",
+      label: "Bandcamp player",
+      sourceUrl: input,
+      embedSrc: input,
+    };
   }
 
   // Case 3: a plain URL — link only.
-  return { embedSrc: null, openUrl: input, label: labelForLink(input) };
-}
-
-function labelForLink(url: string): string {
-  const title = slugToLabel(url);
-  const artist = artistFromUrl(url);
-  if (title && artist) return `${title} by ${artist}`;
-  return title ?? hostname(url) ?? url;
+  return linkMetadata(input, extractArtwork(input));
 }
 
 /**

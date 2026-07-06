@@ -1,5 +1,5 @@
 import type { SessionItem } from "@/types/session";
-import { parseBandcampInput } from "@/lib/bandcamp";
+import Artwork from "@/components/Artwork";
 import BandcampEmbed from "@/components/BandcampEmbed";
 
 function Panel({ children }: { children: React.ReactNode }) {
@@ -8,7 +8,7 @@ function Panel({ children }: { children: React.ReactNode }) {
       <p className="text-xs uppercase tracking-[0.35em] text-zinc-500">
         Now Playing
       </p>
-      <div className="mt-4">{children}</div>
+      <div className="mt-5">{children}</div>
     </section>
   );
 }
@@ -24,28 +24,41 @@ export default function NowPlaying({ item }: { item: SessionItem | null }) {
     );
   }
 
-  const { embedSrc, openUrl, label } = parseBandcampInput(item.url);
+  const primary = item.title ?? item.label ?? item.url;
+  const source = item.sourceUrl ?? item.url;
 
   return (
     <Panel>
-      <h2 className="text-2xl font-semibold text-white">{label}</h2>
+      <div className="flex items-center gap-5">
+        <Artwork
+          item={item}
+          large
+          className="size-28 shrink-0 overflow-hidden rounded-2xl"
+        />
+        <div className="min-w-0">
+          <h2 className="truncate text-2xl font-semibold text-white">
+            {primary}
+          </h2>
+          {item.artist ? (
+            <p className="mt-1 truncate text-zinc-400">{item.artist}</p>
+          ) : null}
+          <p className="mt-1 truncate text-xs text-zinc-600">{source}</p>
+        </div>
+      </div>
 
-      {embedSrc ? (
-        <div className="mt-4">
-          <BandcampEmbed src={embedSrc} openUrl={openUrl} />
+      {item.embedSrc ? (
+        <div className="mt-5">
+          <BandcampEmbed src={item.embedSrc} openUrl={source} />
         </div>
       ) : (
-        <div className="mt-4">
-          <p className="break-all text-sm text-zinc-500">{openUrl}</p>
-          <a
-            href={openUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-4 inline-block rounded-xl bg-white px-5 py-3 font-medium text-black transition hover:bg-zinc-200"
-          >
-            Open on Bandcamp ↗
-          </a>
-        </div>
+        <a
+          href={source}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-5 inline-block rounded-xl bg-white px-5 py-3 font-medium text-black transition hover:bg-zinc-200"
+        >
+          Open on Bandcamp ↗
+        </a>
       )}
     </Panel>
   );
