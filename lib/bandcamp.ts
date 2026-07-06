@@ -40,6 +40,15 @@ function hostname(url: string): string | null {
   }
 }
 
+// "forty-winks" -> "Forty Winks", "jettison-mind-hatch" -> "Jettison Mind Hatch".
+function titleize(slug: string): string {
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 // Turn a "/track/forty-winks" or "/album/jettison-mind-hatch" path into a
 // title-cased label ("Forty Winks", "Jettison Mind Hatch").
 function slugToLabel(url: string): string | null {
@@ -53,12 +62,17 @@ function slugToLabel(url: string): string | null {
   const match = pathname.match(/\/(?:track|album)\/([^/?#]+)/i);
   if (!match) return null;
 
-  const words = match[1]
-    .split("-")
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1));
+  const label = titleize(match[1]);
+  return label ? label : null;
+}
 
-  return words.length ? words.join(" ") : null;
+// Standard artist pages live at "<artist>.bandcamp.com", so the subdomain gives
+// us the artist name. Custom domains don't follow this pattern, so we return
+// null and callers fall back to a title-only label.
+function artistFromUrl(url: string): string | null {
+  const host = hostname(url);
+  const match = host?.match(/^([^.]+)\.bandcamp\.com$/i);
+  return match ? titleize(match[1]) : null;
 }
 
 /**
@@ -81,8 +95,7 @@ export function parseBandcampInput(raw: string): BandcampParse {
       const openUrl = href ?? src;
       const label =
         extractAnchorText(input) ??
-        (href ? slugToLabel(href) : null) ??
-        "Bandcamp player";
+        (href ? labelForLink(href) : "Bandcamp player");
       return { embedSrc: src, openUrl, label };
     }
     // An <iframe> that isn't a recognizable Bandcamp embed: never render it.
@@ -100,7 +113,10 @@ export function parseBandcampInput(raw: string): BandcampParse {
 }
 
 function labelForLink(url: string): string {
-  return slugToLabel(url) ?? hostname(url) ?? url;
+  const title = slugToLabel(url);
+  const artist = artistFromUrl(url);
+  if (title && artist) return `${title} by ${artist}`;
+  return title ?? hostname(url) ?? url;
 }
 
 /**
